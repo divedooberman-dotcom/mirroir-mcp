@@ -88,12 +88,27 @@ struct AppleVisionTextRecognizer: Sendable {
     private func perform(on image: CGImage) throws -> [VNRecognizedTextObservation] {
         do {
             return try attempt(on: image, cpuOnly: false)
+        } catch let error as TextRecognitionError {
+            // A timeout means Vision/the Neural Engine is wedged; retrying in the
+            // same call would just burn another timeout. Bail immediately so
+            // describe_screen returns an error in bounded time instead of hanging.
+            if case .timedOut = error {
+                DebugLog.persist("OCR", "Vision timed out — not retrying")
+                throw error
+            }
+            DebugLog.persist("OCR", "Vision attempt failed (\(error)) — retrying")
         } catch {
             DebugLog.persist("OCR", "Vision attempt failed (\(error)) — retrying")
         }
 
         do {
             return try attempt(on: image, cpuOnly: false)
+        } catch let error as TextRecognitionError {
+            if case .timedOut = error {
+                DebugLog.persist("OCR", "Vision timed out on retry — not falling back")
+                throw error
+            }
+            DebugLog.persist("OCR", "Vision retry failed (\(error)) — falling back to CPU")
         } catch {
             DebugLog.persist("OCR", "Vision retry failed (\(error)) — falling back to CPU")
         }
@@ -117,8 +132,36 @@ struct AppleVisionTextRecognizer: Sendable {
         }
 
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        try handler.perform([request])
+
+        // `VNImageRequestHandler.perform` is synchronous with no built-in
+        // deadline: a stalled Neural Engine or a degenerate frame (common during
+        // an iPhone Mirroring respring) can block it forever, hanging the whole
+        // describe_screen call. Run it on a background queue guarded by a hard
+        // timeout so a wedge surfaces as an error in bounded time instead.
+        let timeout = EnvConfig.ocrTimeoutSeconds
+        let semaphore = DispatchSemaphore(value: 0)
+        let box = ResultBox()
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try handler.perform([request])
+            } catch {
+                box.error = error
+            }
+            semaphore.signal()
+        }
+        guard semaphore.wait(timeout: .now() + .seconds(timeout)) == .success else {
+            // The worker is still blocked inside Vision; it is abandoned (it will
+            // signal into the semaphore harmlessly when/if it ever returns).
+            throw TextRecognitionError.timedOut(seconds: timeout)
+        }
+        if let error = box.error { throw error }
         return request.results ?? []
+    }
+
+    /// One-shot carrier for the background OCR worker's error, read only after
+    /// the semaphore has ordered the write before this read.
+    private final class ResultBox: @unchecked Sendable {
+        var error: (any Error)?
     }
 
     /// Route every stage of `request` to the CPU, where the device offers one.

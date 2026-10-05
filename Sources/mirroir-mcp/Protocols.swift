@@ -279,6 +279,8 @@ enum TextRecognitionError: Error, CustomStringConvertible {
     case visionRequestFailed(underlying: any Error)
     /// A backend inside a composite failed; the others may have succeeded.
     case backendFailed(name: String, underlying: any Error)
+    /// A single Vision OCR pass exceeded its hard timeout and was abandoned.
+    case timedOut(seconds: Int)
 
     var description: String {
         switch self {
@@ -286,6 +288,8 @@ enum TextRecognitionError: Error, CustomStringConvertible {
             return "Vision text recognition failed: \(underlying)"
         case .backendFailed(let name, let underlying):
             return "\(name) failed: \(underlying)"
+        case .timedOut(let seconds):
+            return "Vision text recognition timed out after \(seconds)s"
         }
     }
 }

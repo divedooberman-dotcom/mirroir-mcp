@@ -274,6 +274,12 @@ public enum TimingConstants {
     /// Higher than direct API providers because embacle spawns CLI subprocesses.
     public static let embacleTimeoutSeconds: Int = 60
 
+    /// Hard ceiling for a single Apple Vision OCR pass (seconds). Without it the
+    /// synchronous `VNImageRequestHandler.perform` can block indefinitely when
+    /// the Neural Engine stalls or the frame is degenerate (e.g. during an
+    /// iPhone Mirroring respring), hanging describe_screen with no bound.
+    public static let ocrTimeoutSeconds: Int = 15
+
     /// Default timeout for command-based AI agent processes (seconds).
     public static let commandTimeoutSeconds: Int = 60
 

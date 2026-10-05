@@ -26,6 +26,12 @@ extension EnvConfig {
         readInt("embacleTimeoutSeconds", default: TimingConstants.embacleTimeoutSeconds)
     }
 
+    /// Hard timeout for a single Apple Vision OCR pass (seconds).
+    /// Override with MIRROIR_OCR_TIMEOUT_SECONDS.
+    public static var ocrTimeoutSeconds: Int {
+        readInt("ocrTimeoutSeconds", default: TimingConstants.ocrTimeoutSeconds)
+    }
+
     public static var commandTimeoutSeconds: Int {
         readInt("commandTimeoutSeconds", default: TimingConstants.commandTimeoutSeconds)
     }
