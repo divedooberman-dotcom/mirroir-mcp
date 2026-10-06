@@ -21,6 +21,7 @@ extension MirroirMCP {
         registerNavigationTools(server: server, registry: registry,
                                 policy: policy)
         registerInfoTools(server: server, registry: registry)
+        registerTelegramTools(server: server, registry: registry)
         registerSkillTools(server: server)
         registerScrollToTools(server: server, registry: registry)
         registerAppManagementTools(server: server, registry: registry)
